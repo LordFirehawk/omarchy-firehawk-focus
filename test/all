@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+node test/model.test.js
+omarchy plugin validate "$PWD"
+
+if [[ -x /usr/lib/qt6/bin/qmllint ]]; then
+  /usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell Panel.qml >/dev/null 2>&1
+fi
+
+echo "ok - Firehawk Focus plugin"

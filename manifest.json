@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "lordfirehawk.focus",
+  "name": "Firehawk Focus",
+  "version": "0.3.1",
+  "author": "Lord Firehawk",
+  "description": "A visual, local-first focus timer with deliberate breaks, history, and an Omarchy bar panel",
+  "license": "MIT",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Firehawk Focus",
+    "description": "Visual focus timer with manual phase transitions and local statistics",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}
