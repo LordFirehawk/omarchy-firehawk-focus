@@ -35,6 +35,35 @@ assert.equal(state.sessions.length, 1)
 assert.equal(state.sessions[0].durationMs, 30 * minute)
 assert.equal(model.remainingMs(state, now + 90 * minute), 5 * minute)
 
+// Skipping after a completed focus skips the break and prepares the next focus.
+let completedFocus = model.freshState(now)
+completedFocus = model.start(completedFocus, now)
+completedFocus = model.resolve(completedFocus, now + 25 * minute)
+completedFocus = model.skip(completedFocus, now + 25 * minute)
+assert.equal(completedFocus.phase, 'focus')
+assert.equal(completedFocus.status, 'ready')
+assert.equal(completedFocus.sessions.length, 1)
+assert.equal(completedFocus.sessions[0].durationMs, 25 * minute)
+assert.equal(completedFocus.sessions[0].completed, true)
+assert.equal(completedFocus.cycleCount, 1)
+
+// A click at exactly zero gets the same completed-session semantics even if
+// the resolve timer has not persisted status: complete focus, then skip break.
+let zeroRace = model.start(model.freshState(now), now)
+zeroRace = model.skip(zeroRace, now + 25 * minute)
+assert.equal(zeroRace.phase, 'focus')
+assert.equal(zeroRace.status, 'ready')
+assert.equal(zeroRace.sessions[0].durationMs, 25 * minute)
+assert.equal(zeroRace.sessions[0].completed, true)
+
+// Skipping a completed break skips the next focus and prepares the following break.
+let completedBreak = model.start(model.readyPhase(model.freshState(now), 'shortBreak'), now)
+completedBreak = model.resolve(completedBreak, now + 5 * minute)
+completedBreak = model.skip(completedBreak, now + 5 * minute)
+assert.equal(completedBreak.phase, 'shortBreak')
+assert.equal(completedBreak.status, 'ready')
+assert.equal(completedBreak.sessions.length, 0)
+
 // Every completion mode waits for an explicit extend-or-next-phase decision.
 let pending = model.freshState(now)
 pending = model.start(pending, now)

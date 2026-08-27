@@ -286,14 +286,28 @@ function resolve(state, nowMs) {
 
 function skip(state, nowMs) {
   var when = isFinite(Number(nowMs)) ? Number(nowMs) : Date.now()
-  if (state.status === "complete") return acceptCompletion(state, when)
-  if (state.phase === "focus") {
-    var started = focusWasStarted(state)
-    var partial = appendInterruptedFocus(state, when)
+  var current = cloneState(state)
+
+  // A timer can be visually at zero before the resolve timer has persisted the
+  // complete state. Normalize that race so a zero timer gets completion
+  // semantics rather than being recorded as an interrupted session.
+  if (current.status === "running" && remainingMs(current, when) <= 0)
+    current = markComplete(current, current.endsAtMs > 0 ? current.endsAtMs : when)
+
+  // The current phase is already complete, so skip the phase that follows it.
+  // For example: completed focus -> skip break -> next focus.
+  if (current.status === "complete") {
+    var afterCompletion = acceptCompletion(current, when)
+    return skip(afterCompletion, when)
+  }
+
+  if (current.phase === "focus") {
+    var started = focusWasStarted(current)
+    var partial = appendInterruptedFocus(current, when)
     var nextBreak = started ? breakPhaseAfterFocus(partial.cycleCount, partial.config) : "shortBreak"
     return readyPhase(partial, nextBreak)
   }
-  return readyPhase(state, "focus")
+  return readyPhase(current, "focus")
 }
 
 function takeBreak(state, nowMs) {
