@@ -13,7 +13,8 @@ let package = Package(
             path: "Sources/FirehawkFocus",
             resources: [
                 .copy("Resources/FocusModel.js"),
-                .copy("Resources/Sounds")
+                .copy("Resources/Sounds"),
+                .copy("Resources/AppIcon.icns")
             ]
         ),
     ]

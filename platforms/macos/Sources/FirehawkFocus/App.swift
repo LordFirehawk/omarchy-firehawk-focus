@@ -41,6 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        showTray()
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showTray()
         return true

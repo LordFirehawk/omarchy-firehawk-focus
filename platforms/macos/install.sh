@@ -27,6 +27,11 @@ cp "$bin_dir/FirehawkFocus" "$contents/MacOS/FirehawkFocus"
 cp "$root/Info.plist" "$contents/Info.plist"
 cp "$repo_root/FocusModel.js" "$contents/Resources/FocusModel.js"
 
+# Copy AppIcon
+if [ -f "$root/Resources/AppIcon.icns" ]; then
+  cp "$root/Resources/AppIcon.icns" "$contents/Resources/AppIcon.icns"
+fi
+
 # Copy custom sound resources
 if [ -d "$root/Resources/Sounds" ]; then
   cp -R "$root/Resources/Sounds/"* "$contents/Resources/" 2>/dev/null || true
@@ -43,11 +48,15 @@ codesign --force --deep --sign - "$app_dir"
 # Symlink into system /Applications if writable (for instant Spotlight/Launchpad indexing)
 ln -sf "$app_dir" "/Applications/Firehawk Focus.app" 2>/dev/null || true
 
+# Touch the app bundle to force macOS LaunchServices and Finder icon cache refresh
+touch "$app_dir"
+
 # Install CLI launcher in ~/.local/bin/firehawk-focus
 mkdir -p "$HOME/.local/bin"
 cat << 'EOF' > "$HOME/.local/bin/firehawk-focus"
 #!/usr/bin/env bash
 open -a "$HOME/Applications/Firehawk Focus.app" "$@"
+osascript -e 'tell application "Firehawk Focus" to activate' 2>/dev/null || true
 EOF
 chmod +x "$HOME/.local/bin/firehawk-focus"
 

@@ -231,7 +231,13 @@ struct SettingsView: View {
 
                 // Section: About & Quit
                 VStack(spacing: 8) {
-                    HStack {
+                    HStack(spacing: 12) {
+                        Image(nsImage: NSApplication.shared.applicationIconImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 38, height: 38)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Firehawk Focus")
                                 .font(.caption.bold())

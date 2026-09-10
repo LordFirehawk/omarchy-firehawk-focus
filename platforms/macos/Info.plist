@@ -8,6 +8,10 @@
     <string>Firehawk Focus</string>
     <key>CFBundleExecutable</key>
     <string>FirehawkFocus</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>org.lordfirehawk.firehawk-focus</string>
     <key>CFBundleInfoDictionaryVersion</key>
