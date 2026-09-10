@@ -1,57 +1,37 @@
 # Firehawk Focus
 
-A visual, local-first focus timer built for the [Omarchy](https://omarchy.org/) bar. Firehawk Focus combines deliberate focus/break transitions, interruption-aware analytics, configurable completion alerts, and automatic focus-only Do Not Disturb.
+Firehawk Focus is a cross-platform Pomodoro & Focus block tracker designed for deep work. It runs seamlessly on both **Omarchy Linux** (QML / Wayland bar plugin) and **macOS** (native Swift / SwiftUI menu bar application).
 
-<p align="center">
-  <img src="assets/firehawk-focus-complete.png" alt="Firehawk Focus completion panel" width="500">
-</p>
+Both editions share the exact same battle-tested core state machine ([`FocusModel.js`](file:///Users/janscodingapple/Projects/Personal/omarchy-firehawk-focus/FocusModel.js)), ensuring identical timer mechanics, 4-cycle long break logic, and local data persistence.
 
-## Features
+---
 
-- Focus, short-break, and earned long-break rounds
-- Manual decisions at zero: start the next phase or add five minutes
-- Non-invasive and invasive completion modes
-- Optional alarm sound and desktop notification
-- Automatic Do Not Disturb during focus, with previous state restoration
-- Partial-session accounting when focus is interrupted
-- Seven-day chart, daily totals, streaks, rounds, and recent sessions
-- Configurable durations and rounds per long break
-- Local persistence with no account, network service, or cloud synchronization
-- Omarchy theme integration
+## macOS Native App
 
-## Install
+### Features
+- **Native Menu Bar Item**: Dynamic live countdown clock, pause indicator, and flame icon in the macOS menu bar.
+- **Locked Tray Window**: The popup tray locks in place directly beneath the menu bar icon when opened so it stays rock-solid while working.
+- **App Activity Tracking**: Automatically tracks which frontmost apps you use during focus blocks without needing screen recording permissions. Visualized with native macOS icons and percentage bars in Stats.
+- **Audible Across the Room**: Customizable end sounds, featuring a loud **Digital Alarm** for breaks so you never miss when it's time to return to your desk.
+- **Auto Startup on Login**: Starts automatically with your Mac.
 
-Firehawk Focus is an unsandboxed Omarchy shell plugin. Review third-party plugin code before enabling it.
+### Quick Start & Installation
 
 ```sh
-omarchy plugin add https://github.com/LordFirehawk/omarchy-firehawk-focus.git --enable
+# Build, install to ~/Applications, create CLI shortcut, and launch:
+./platforms/macos/install.sh
 ```
 
-The interactive installer validates the manifest and asks where to place the widget. To move it later:
+### Reopening the App if Closed
+If you accidentally quit or close the app, you can reopen it anytime using any of these methods:
+1. **Spotlight / Raycast**: Press <kbd>⌘</kbd> + <kbd>Space</kbd>, type `Firehawk Focus`, and press <kbd>Return</kbd>.
+2. **Terminal**: Run `firehawk-focus`.
+3. **Finder**: Go to `Applications` (or `~/Applications`) and open `Firehawk Focus`.
 
-```sh
-omarchy bar move lordfirehawk.focus --section center
-```
+### Launch on Boot
+By default, the installer enables launch on login via macOS LaunchAgent (`~/Library/LaunchAgents/org.lordfirehawk.firehawk-focus.plist`). You can also toggle this on or off anytime in the **Settings (⚙️)** tab under **Startup & Reopening**.
 
-### Update
-
-```sh
-omarchy plugin update lordfirehawk.focus
-```
-
-### Remove
-
-```sh
-omarchy plugin remove lordfirehawk.focus
-```
-
-## Requirements
-
-- A current Omarchy release with the shell plugin system
-- `notify-send` for desktop completion notifications
-- `canberra-gtk-play` for completion sounds
-
-The notification and sound integrations can each be disabled in Settings.
+---
 
 ## Controls
 
@@ -83,9 +63,8 @@ Leaving a started focus block through **Skip** or **Take a break** records its a
 
 Timer state, settings, and history are stored locally at:
 
-```text
-~/.local/state/omarchy/firehawk-focus.json
-```
+- Linux: `~/.local/state/omarchy/firehawk-focus.json`
+- macOS: `~/Library/Application Support/FirehawkFocus/firehawk-focus.json`
 
 Removing the plugin does not automatically remove this history.
 

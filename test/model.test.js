@@ -183,6 +183,12 @@ configured = model.updateConfig(configured, 'soundEnabled', false, now)
 assert.equal(configured.config.soundEnabled, false)
 configured = model.updateConfig(configured, 'completionMode', 'invasive', now)
 assert.equal(configured.config.completionMode, 'invasive')
+configured = model.updateConfig(configured, 'trackApps', false, now)
+assert.equal(configured.config.trackApps, false)
+configured = model.updateConfig(configured, 'focusEndSound', 'Hero', now)
+assert.equal(configured.config.focusEndSound, 'Hero')
+configured = model.updateConfig(configured, 'breakEndSound', 'AlarmBell', now)
+assert.equal(configured.config.breakEndSound, 'AlarmBell')
 
 // History powers today's cards, the seven-day chart, and streaks.
 let history = model.freshState(now)
@@ -201,6 +207,25 @@ const week = model.weekSummary(history, now)
 assert.equal(week.length, 7)
 assert.equal(week[6].durationMs, 55 * minute)
 assert.equal(model.recentSessions(history, 2).length, 2)
+
+// App activity tracking aggregates per-session and today's breakdown
+let appSessionState = model.freshState(now)
+appSessionState = model.start(appSessionState, now)
+appSessionState = model.updateCurrentApps(appSessionState, [
+  { bundleId: 'com.apple.dt.Xcode', appName: 'Xcode', durationMs: 20 * minute },
+  { bundleId: 'com.apple.Safari', appName: 'Safari', durationMs: 5 * minute }
+])
+appSessionState = model.complete(appSessionState, now + 25 * minute)
+assert.equal(appSessionState.sessions.length, 1)
+assert.equal(appSessionState.sessions[0].apps.length, 2)
+assert.equal(appSessionState.sessions[0].apps[0].appName, 'Xcode')
+assert.equal(appSessionState.currentApps.length, 0)
+
+const todayApps = model.todayAppSummary(appSessionState, now + 25 * minute)
+assert.equal(todayApps.length, 2)
+assert.equal(todayApps[0].bundleId, 'com.apple.dt.Xcode')
+assert.equal(todayApps[0].percentage, 80)
+assert.equal(todayApps[1].percentage, 20)
 
 // State remains valid across disk round trips and malformed files recover.
 const restored = model.parseState(model.serializeState(history), now)
