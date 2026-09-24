@@ -46,7 +46,7 @@ chmod +x "$contents/MacOS/FirehawkFocus"
 codesign --force --deep --sign - "$app_dir"
 
 # Symlink into system /Applications if writable (for instant Spotlight/Launchpad indexing)
-ln -sf "$app_dir" "/Applications/Firehawk Focus.app" 2>/dev/null || true
+ln -sfn "$app_dir" "/Applications/Firehawk Focus.app" 2>/dev/null || true
 
 # Touch the app bundle to force macOS LaunchServices and Finder icon cache refresh
 touch "$app_dir"
