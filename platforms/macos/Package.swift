@@ -17,5 +17,10 @@ let package = Package(
                 .copy("Resources/AppIcon.icns")
             ]
         ),
+        .testTarget(
+            name: "FirehawkFocusTests",
+            dependencies: ["FirehawkFocus"],
+            path: "Tests/FirehawkFocusTests"
+        ),
     ]
 )

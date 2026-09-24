@@ -13,6 +13,30 @@ struct FirehawkFocusMain {
     }
 }
 
+struct StatusItemContent: Equatable {
+    let symbolName: String
+    let title: String
+    let toolTip: String
+
+    init(phase: FocusPhase, status: FocusStatus, clockText: String) {
+        symbolName = phase.sfSymbol
+        switch status {
+        case .ready:
+            title = ""
+            toolTip = "Firehawk Focus (\(phase.title) ready)"
+        case .running:
+            title = clockText
+            toolTip = "Firehawk Focus: \(phase.title) (\(clockText) remaining)"
+        case .paused:
+            title = clockText + " ⏸"
+            toolTip = "Firehawk Focus: Paused at \(clockText)"
+        case .complete:
+            title = "Done"
+            toolTip = "Firehawk Focus: \(phase.title) complete!"
+        }
+    }
+}
+
 final class TrayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -24,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var trayPanel: TrayPanel?
     private var clickOutsideMonitor: Any?
+    private var statusItemContent: StatusItemContent?
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -56,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
             button.action = #selector(statusItemClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            updateStatusItemButton()
+            button.imagePosition = .imageLeading
         }
     }
 
@@ -90,60 +115,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func observeEngine() {
-        engine.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                // Defer to next runloop tick so published properties have updated
-                DispatchQueue.main.async {
-                    self?.updateStatusItemButton()
-                }
+        // The engine republishes every property on each 0.25s tick, so only react to
+        // the values shown in the menu bar, and only when the rendered content changes.
+        Publishers.CombineLatest3(engine.$phase, engine.$status, engine.$clockText)
+            .map(StatusItemContent.init)
+            .removeDuplicates()
+            .sink { [weak self] content in
+                self?.updateStatusItemButton(content)
             }
             .store(in: &cancellables)
     }
 
-    private func updateStatusItemButton() {
+    private func updateStatusItemButton(_ content: StatusItemContent) {
         guard let button = statusItem.button else { return }
 
-        // Configure symbol
-        let symbolName: String = {
-            switch engine.phase {
-            case .focus: return "flame.fill"
-            case .shortBreak: return "cup.and.saucer.fill"
-            case .longBreak: return "sparkles"
+        // Rebuilding the symbol image forces a CoreUI lookup and status bar relayout
+        if content.symbolName != statusItemContent?.symbolName {
+            let imageConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+            button.image = NSImage(systemSymbolName: content.symbolName, accessibilityDescription: "Firehawk Focus")?.withSymbolConfiguration(imageConfig)
+        }
+
+        if content.title != statusItemContent?.title {
+            if content.title.isEmpty {
+                button.attributedTitle = NSAttributedString(string: "")
+            } else {
+                button.attributedTitle = NSAttributedString(
+                    string: content.title,
+                    attributes: [
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium),
+                        .foregroundColor: NSColor.labelColor
+                    ]
+                )
             }
-        }()
-
-        let imageConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
-        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Firehawk Focus")?.withSymbolConfiguration(imageConfig)
-        button.imagePosition = .imageLeading
-
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
-
-        func setMonospacedTitle(_ text: String) {
-            let attr = NSAttributedString(
-                string: text,
-                attributes: [
-                    .font: font,
-                    .foregroundColor: NSColor.labelColor
-                ]
-            )
-            button.attributedTitle = attr
         }
 
-        switch engine.status {
-        case .ready:
-            button.attributedTitle = NSAttributedString(string: "")
-            button.toolTip = "Firehawk Focus (\(engine.phase.title) ready)"
-        case .running:
-            setMonospacedTitle(engine.clockText)
-            button.toolTip = "Firehawk Focus: \(engine.phase.title) (\(engine.clockText) remaining)"
-        case .paused:
-            setMonospacedTitle(engine.clockText + " ⏸")
-            button.toolTip = "Firehawk Focus: Paused at \(engine.clockText)"
-        case .complete:
-            setMonospacedTitle("Done")
-            button.toolTip = "Firehawk Focus: \(engine.phase.title) complete!"
-        }
+        button.toolTip = content.toolTip
+        statusItemContent = content
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
