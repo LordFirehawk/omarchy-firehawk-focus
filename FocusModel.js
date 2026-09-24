@@ -90,6 +90,7 @@ function cleanSession(value) {
   var durationMs = Number(value.durationMs)
   if (!isFinite(endedAtMs) || endedAtMs <= 0 || !isFinite(durationMs) || durationMs <= 0) return null
   return {
+    phase: PHASES.indexOf(value.phase) >= 0 ? value.phase : "focus",
     date: typeof value.date === "string" && value.date !== "" ? value.date : dateKey(endedAtMs),
     startedAtMs: Math.max(0, Number(value.startedAtMs) || (endedAtMs - durationMs)),
     endedAtMs: endedAtMs,
@@ -97,6 +98,10 @@ function cleanSession(value) {
     completed: value.completed === false ? false : true,
     apps: cleanApps(value.apps)
   }
+}
+
+function sessionPhase(session) {
+  return session && PHASES.indexOf(session.phase) >= 0 ? session.phase : "focus"
 }
 
 function freshState(nowMs, config) {
@@ -243,20 +248,24 @@ function elapsedPhaseMs(state, nowMs) {
   return Math.max(0, Math.min(duration, duration - remainingMs(state, nowMs)))
 }
 
-function focusWasStarted(state) {
-  return state.phase === "focus" && state.status !== "ready" && Number(state.startedAtMs) > 0
+function phaseWasStarted(state) {
+  return state.status !== "ready" && Number(state.startedAtMs) > 0
 }
 
-function appendFocusSession(state, nowMs, completed) {
+function focusWasStarted(state) {
+  return state.phase === "focus" && phaseWasStarted(state)
+}
+
+function appendPhaseSession(state, nowMs, completed) {
   var next = cloneState(state)
-  if (next.phase !== "focus") return next
   var duration = Math.floor(elapsedPhaseMs(next, nowMs))
   if (duration < 1000) {
-    if (!focusWasStarted(next)) return next
+    if (!phaseWasStarted(next)) return next
     duration = 1000
   }
-  var apps = cleanApps(next.currentApps)
+  var apps = next.phase === "focus" ? cleanApps(next.currentApps) : []
   next.sessions.push({
+    phase: next.phase,
     date: dateKey(nowMs),
     startedAtMs: next.startedAtMs > 0 ? next.startedAtMs : Number(nowMs) - duration,
     endedAtMs: Number(nowMs),
@@ -267,6 +276,11 @@ function appendFocusSession(state, nowMs, completed) {
   next.currentApps = []
   if (next.sessions.length > 1000) next.sessions = next.sessions.slice(next.sessions.length - 1000)
   return next
+}
+
+function appendFocusSession(state, nowMs, completed) {
+  if (state.phase !== "focus") return cloneState(state)
+  return appendPhaseSession(state, nowMs, completed)
 }
 
 function appendInterruptedFocus(state, nowMs) {
@@ -283,7 +297,7 @@ function complete(state, nowMs) {
     next.cycleCount += 1
     return readyPhase(next, breakPhaseAfterFocus(next.cycleCount, next.config))
   }
-  return readyPhase(next, "focus")
+  return readyPhase(appendPhaseSession(next, nowMs, true), "focus")
 }
 
 function markComplete(state, nowMs) {
@@ -335,7 +349,7 @@ function skip(state, nowMs) {
     var nextBreak = started ? breakPhaseAfterFocus(partial.cycleCount, partial.config) : "shortBreak"
     return readyPhase(partial, nextBreak)
   }
-  return readyPhase(current, "focus")
+  return readyPhase(appendPhaseSession(current, when, false), "focus")
 }
 
 function takeBreak(state, nowMs) {
@@ -351,7 +365,8 @@ function takeBreak(state, nowMs) {
 function startFocus(state, nowMs) {
   var when = Number(nowMs)
   if (state.status === "complete") return startNext(state, when)
-  var ready = state.phase === "focus" ? cloneState(state) : readyPhase(state, "focus")
+  var recorded = state.phase !== "focus" ? appendPhaseSession(state, when, false) : cloneState(state)
+  var ready = recorded.phase === "focus" ? recorded : readyPhase(recorded, "focus")
   return start(ready, when)
 }
 
@@ -423,7 +438,7 @@ function todayAppSummary(state, nowMs) {
   if (Array.isArray(state.sessions)) {
     for (var i = 0; i < state.sessions.length; i++) {
       var s = state.sessions[i]
-      if (s.date === key && Array.isArray(s.apps)) {
+      if (s.date === key && sessionPhase(s) === "focus" && Array.isArray(s.apps)) {
         for (var j = 0; j < s.apps.length; j++) {
           var a = s.apps[j]
           if (!map[a.bundleId]) {
@@ -467,11 +482,29 @@ function todaySummary(state, nowMs) {
   var duration = 0
   var count = 0
   for (var i = 0; i < state.sessions.length; i++) {
-    if (state.sessions[i].date !== key) continue
+    if (state.sessions[i].date !== key || sessionPhase(state.sessions[i]) !== "focus") continue
     duration += Number(state.sessions[i].durationMs) || 0
     count += 1
   }
   return { date: key, durationMs: duration, sessions: count }
+}
+
+function todayPhaseSummary(state, nowMs) {
+  var key = dateKey(nowMs)
+  var focusMs = 0
+  var breakMs = 0
+  for (var i = 0; i < state.sessions.length; i++) {
+    var session = state.sessions[i]
+    if (session.date !== key) continue
+    if (sessionPhase(session) === "focus") focusMs += Number(session.durationMs) || 0
+    else breakMs += Number(session.durationMs) || 0
+  }
+  if (phaseWasStarted(state) && dateKey(state.startedAtMs) === key) {
+    var liveMs = elapsedPhaseMs(state, nowMs)
+    if (state.phase === "focus") focusMs += liveMs
+    else breakMs += liveMs
+  }
+  return { date: key, focusMs: focusMs, breakMs: breakMs }
 }
 
 function weekSummary(state, nowMs) {
@@ -481,21 +514,37 @@ function weekSummary(state, nowMs) {
     var key = shiftedDateKey(today, offset)
     var duration = 0
     var count = 0
+    var breakDuration = 0
+    var breakCount = 0
     for (var i = 0; i < state.sessions.length; i++) {
       if (state.sessions[i].date !== key) continue
-      duration += Number(state.sessions[i].durationMs) || 0
-      count += 1
+      if (sessionPhase(state.sessions[i]) === "focus") {
+        duration += Number(state.sessions[i].durationMs) || 0
+        count += 1
+      } else {
+        breakDuration += Number(state.sessions[i].durationMs) || 0
+        breakCount += 1
+      }
     }
     var date = dateFromKey(key)
     var names = ["S", "M", "T", "W", "T", "F", "S"]
-    rows.push({ date: key, day: date ? names[date.getDay()] : "?", durationMs: duration, sessions: count })
+    rows.push({
+      date: key,
+      day: date ? names[date.getDay()] : "?",
+      durationMs: duration,
+      sessions: count,
+      breakDurationMs: breakDuration,
+      breakSessions: breakCount
+    })
   }
   return rows
 }
 
 function streakDays(state, nowMs) {
   var active = {}
-  for (var i = 0; i < state.sessions.length; i++) active[state.sessions[i].date] = true
+  for (var i = 0; i < state.sessions.length; i++) {
+    if (sessionPhase(state.sessions[i]) === "focus") active[state.sessions[i].date] = true
+  }
   var cursor = dateKey(nowMs)
   if (!active[cursor]) cursor = shiftedDateKey(cursor, -1)
   var count = 0
@@ -508,7 +557,8 @@ function streakDays(state, nowMs) {
 
 function recentSessions(state, limit) {
   var max = Math.max(1, Number(limit) || 5)
-  return state.sessions.slice(Math.max(0, state.sessions.length - max)).reverse()
+  var focusSessions = state.sessions.filter(function(session) { return sessionPhase(session) === "focus" })
+  return focusSessions.slice(Math.max(0, focusSessions.length - max)).reverse()
 }
 
 function formatClock(ms) {
@@ -584,6 +634,7 @@ if (typeof module !== "undefined") {
     breakPhaseAfterFocus: breakPhaseAfterFocus,
     readyPhase: readyPhase,
     elapsedPhaseMs: elapsedPhaseMs,
+    phaseWasStarted: phaseWasStarted,
     focusWasStarted: focusWasStarted,
     appendFocusSession: appendFocusSession,
     appendInterruptedFocus: appendInterruptedFocus,
@@ -604,6 +655,7 @@ if (typeof module !== "undefined") {
     cleanApps: cleanApps,
     cleanSession: cleanSession,
     todaySummary: todaySummary,
+    todayPhaseSummary: todayPhaseSummary,
     weekSummary: weekSummary,
     streakDays: streakDays,
     recentSessions: recentSessions,

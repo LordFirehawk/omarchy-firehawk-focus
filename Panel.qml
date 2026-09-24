@@ -35,6 +35,7 @@ Panel {
   readonly property real remaining: FocusModel.remainingMs(session, nowMs)
   readonly property real timerProgress: FocusModel.progress(session, nowMs)
   readonly property var today: FocusModel.todaySummary(session, nowMs)
+  readonly property var todayPhases: FocusModel.todayPhaseSummary(session, nowMs)
   readonly property var week: FocusModel.weekSummary(session, nowMs)
   readonly property int streak: FocusModel.streakDays(session, nowMs)
   readonly property var recent: FocusModel.recentSessions(session, 6)
@@ -466,6 +467,15 @@ Panel {
                   width: parent.width - progressVisual.width - parent.spacing
                   anchors.verticalCenter: parent.verticalCenter
                   spacing: Style.space(7)
+
+                  Text {
+                    text: "TODAY  " + FocusModel.formatDuration(root.session.phase === "focus"
+                      ? root.todayPhases.focusMs : root.todayPhases.breakMs)
+                    color: root.faint
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 0.8
+                  }
 
                   Text {
                     text: FocusModel.phaseLabel(root.session.phase).toUpperCase()

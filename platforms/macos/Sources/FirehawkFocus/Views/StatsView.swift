@@ -5,8 +5,26 @@ struct StatsView: View {
     @State private var showingClearConfirmation = false
 
     private var weekPeakMinutes: Double {
-        let maxDuration = engine.week.map { $0.durationMinutes }.max() ?? 0
+        let maxDuration = engine.week.map { $0.totalMinutes }.max() ?? 0
         return max(25.0, maxDuration)
+    }
+
+    private var weekFocusMinutes: Double {
+        engine.week.reduce(0) { $0 + $1.durationMinutes }
+    }
+
+    private var weekBreakMinutes: Double {
+        engine.week.reduce(0) { $0 + $1.breakDurationMinutes }
+    }
+
+    private static func shortDuration(minutes: Double) -> String {
+        let total = Int(minutes.rounded())
+        if total >= 60 {
+            let hours = total / 60
+            let rest = total % 60
+            return rest > 0 ? "\(hours)h \(rest)m" : "\(hours)h"
+        }
+        return "\(total)m"
     }
 
     var body: some View {
@@ -16,13 +34,30 @@ struct StatsView: View {
                 HStack(spacing: 10) {
                     // Today Focus
                     VStack(alignment: .leading, spacing: 4) {
-                        Label("Today", systemImage: "clock.fill")
+                        Label("Focus Today", systemImage: "clock.fill")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(engine.today.formattedDuration)
                             .font(.title3.bold())
                             .foregroundColor(.primary)
                         Text("\(engine.today.sessions) session\(engine.today.sessions == 1 ? "" : "s")")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.secondary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                    // Break Today
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Break Today", systemImage: "cup.and.saucer.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.teal)
+                        Text(engine.today.formattedBreakDuration)
+                            .font(.title3.bold())
+                            .foregroundColor(.primary)
+                        Text("\(Self.shortDuration(minutes: weekBreakMinutes)) this week")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -116,34 +151,52 @@ struct StatsView: View {
                 }
 
                 // 7-Day Activity Chart
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Last 7 Days")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Last 7 Days")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        HStack(spacing: 10) {
+                            legendDot(color: .orange, label: Self.shortDuration(minutes: weekFocusMinutes) + " focus")
+                            legendDot(color: .teal, label: Self.shortDuration(minutes: weekBreakMinutes) + " break")
+                        }
+                    }
 
-                    HStack(alignment: .bottom, spacing: 10) {
-                        ForEach(engine.week) { day in
-                            VStack(spacing: 6) {
-                                // Bar
-                                GeometryReader { geo in
-                                    let barHeight = max(4.0, (day.durationMinutes / weekPeakMinutes) * geo.size.height)
-                                    VStack {
-                                        Spacer()
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(day.durationMinutes > 0 ? Color.orange : Color.secondary.opacity(0.2))
-                                            .frame(height: barHeight)
-                                    }
+                    HStack(alignment: .bottom, spacing: 8) {
+                        // Y axis
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text(Self.shortDuration(minutes: weekPeakMinutes))
+                            Spacer()
+                            Text(Self.shortDuration(minutes: weekPeakMinutes / 2))
+                            Spacer()
+                            Text("0")
+                        }
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary.opacity(0.7))
+                        .frame(width: 26, height: 92)
+                        .padding(.bottom, 18)
+
+                        ZStack(alignment: .bottom) {
+                            // Grid lines
+                            VStack(spacing: 0) {
+                                ForEach(0..<3, id: \.self) { index in
+                                    Rectangle()
+                                        .fill(Color.secondary.opacity(index == 2 ? 0.28 : 0.12))
+                                        .frame(height: 1)
+                                    if index < 2 { Spacer() }
                                 }
-                                .frame(height: 70)
+                            }
+                            .frame(height: 92)
+                            .padding(.bottom, 18)
 
-                                // Day Label
-                                Text(day.day)
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(day.date == engine.today.date ? Color.orange : Color.secondary)
+                            HStack(alignment: .bottom, spacing: 6) {
+                                ForEach(engine.week) { day in
+                                    dayColumn(day)
+                                }
                             }
                         }
                     }
-                    .padding(.top, 4)
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -246,5 +299,58 @@ struct StatsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
+    }
+
+    @ViewBuilder
+    private func legendDot(color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+            Text(label)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func dayColumn(_ day: DaySummary) -> some View {
+        let isToday = day.date == engine.today.date
+        let chartHeight: CGFloat = 92
+        let focusHeight = CGFloat(day.durationMinutes / weekPeakMinutes) * chartHeight
+        let breakHeight = CGFloat(day.breakDurationMinutes / weekPeakMinutes) * chartHeight
+
+        VStack(spacing: 6) {
+            ZStack(alignment: .bottom) {
+                // Empty track so quiet days still read as a column
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color.secondary.opacity(0.07))
+                    .frame(height: chartHeight)
+
+                if day.totalMinutes > 0 {
+                    VStack(spacing: 1.5) {
+                        if day.breakDurationMinutes > 0 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.teal.opacity(isToday ? 0.95 : 0.65))
+                                .frame(height: max(3, breakHeight))
+                        }
+                        if day.durationMinutes > 0 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.orange.opacity(isToday ? 1.0 : 0.72))
+                                .frame(height: max(3, focusHeight))
+                        }
+                    }
+                }
+            }
+            .frame(height: chartHeight)
+            .frame(maxWidth: 34)
+
+            Text(day.day)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(isToday ? Color.orange : Color.secondary)
+                .frame(height: 12)
+        }
+        .frame(maxWidth: .infinity)
+        .help("\(Self.shortDuration(minutes: day.durationMinutes)) focus · \(Self.shortDuration(minutes: day.breakDurationMinutes)) break")
     }
 }

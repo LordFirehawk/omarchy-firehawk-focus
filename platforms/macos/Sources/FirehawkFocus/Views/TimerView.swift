@@ -84,6 +84,11 @@ struct TimerView: View {
 
                 // Center Information Stack
                 VStack(spacing: 6) {
+                    Text("TODAY  \(engine.todayPhaseDurationText)")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+
                     // Phase Capsule Badge
                     HStack(spacing: 5) {
                         Image(systemName: engine.phase.sfSymbol)

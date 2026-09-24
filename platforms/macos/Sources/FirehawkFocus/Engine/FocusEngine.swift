@@ -19,6 +19,7 @@ public final class FocusEngine: ObservableObject {
     @Published public private(set) var clockText: String = "25:00"
     @Published public private(set) var statusMessageText: String = "A clean focus block is waiting."
     @Published public private(set) var primaryButtonLabel: String = "Start Focus"
+    @Published public private(set) var todayPhaseDurationText: String = "0m"
 
     @Published public private(set) var config: FocusConfig = .default
     @Published public private(set) var today: TodaySummary = TodaySummary(date: "", durationMs: 0, sessions: 0)
@@ -241,6 +242,14 @@ public final class FocusEngine: ObservableObject {
             self.primaryButtonLabel = primVal.toString() ?? "Start"
         }
 
+        var todayBreakMs: Double = 0
+        if let phaseSummary = jsModel.invokeMethod("todayPhaseSummary", withArguments: [state, nowMs]) {
+            let key = self.phase == .focus ? "focusMs" : "breakMs"
+            let durationMs = phaseSummary.objectForKeyedSubscript(key)?.toDouble() ?? 0
+            self.todayPhaseDurationText = jsModel.invokeMethod("formatDuration", withArguments: [durationMs])?.toString() ?? "0m"
+            todayBreakMs = phaseSummary.objectForKeyedSubscript("breakMs")?.toDouble() ?? 0
+        }
+
         // Parse config
         if let cfgVal = state.objectForKeyedSubscript("config") {
             self.config = FocusConfig(
@@ -263,7 +272,8 @@ public final class FocusEngine: ObservableObject {
             self.today = TodaySummary(
                 date: todayVal.objectForKeyedSubscript("date")?.toString() ?? "",
                 durationMs: todayVal.objectForKeyedSubscript("durationMs")?.toDouble() ?? 0,
-                sessions: Int(todayVal.objectForKeyedSubscript("sessions")?.toInt32() ?? 0)
+                sessions: Int(todayVal.objectForKeyedSubscript("sessions")?.toInt32() ?? 0),
+                breakDurationMs: todayBreakMs
             )
         }
 
@@ -274,7 +284,14 @@ public final class FocusEngine: ObservableObject {
                       let day = dict["day"] as? String,
                       let durationMs = dict["durationMs"] as? Double,
                       let sessions = dict["sessions"] as? Int else { return nil }
-                return DaySummary(date: date, day: day, durationMs: durationMs, sessions: sessions)
+                return DaySummary(
+                    date: date,
+                    day: day,
+                    durationMs: durationMs,
+                    sessions: sessions,
+                    breakDurationMs: dict["breakDurationMs"] as? Double ?? 0,
+                    breakSessions: dict["breakSessions"] as? Int ?? 0
+                )
             }
         }
 

@@ -62,7 +62,9 @@ completedBreak = model.resolve(completedBreak, now + 5 * minute)
 completedBreak = model.skip(completedBreak, now + 5 * minute)
 assert.equal(completedBreak.phase, 'shortBreak')
 assert.equal(completedBreak.status, 'ready')
-assert.equal(completedBreak.sessions.length, 0)
+assert.equal(completedBreak.sessions.length, 1)
+assert.equal(completedBreak.sessions[0].phase, 'shortBreak')
+assert.equal(completedBreak.sessions[0].durationMs, 5 * minute)
 
 // Every completion mode waits for an explicit extend-or-next-phase decision.
 let pending = model.freshState(now)
@@ -234,5 +236,36 @@ assert.equal(restored.config.focusMinutes, 25)
 assert.equal(model.parseState('{broken', now).status, 'ready')
 assert.equal(model.formatClock(25 * minute), '25:00')
 assert.equal(model.formatDuration(90 * minute), '1h 30m')
+
+// Today's timer total includes saved blocks plus the live elapsed phase.
+let dailyTotals = model.freshState(now)
+dailyTotals.sessions = [
+  { phase: 'focus', date: today, startedAtMs: now - 45 * minute, endedAtMs: now - 20 * minute, durationMs: 25 * minute, completed: true },
+  { phase: 'shortBreak', date: today, startedAtMs: now - 20 * minute, endedAtMs: now - 15 * minute, durationMs: 5 * minute, completed: true }
+]
+dailyTotals = model.start(model.readyPhase(dailyTotals, 'shortBreak'), now)
+assert.deepEqual(model.todayPhaseSummary(dailyTotals, now + 2 * minute), {
+  date: today,
+  focusMs: 25 * minute,
+  breakMs: 7 * minute
+})
+
+// Ending a break early records only the elapsed break and leaves focus analytics unchanged.
+dailyTotals = model.startFocus(dailyTotals, now + 3 * minute)
+assert.equal(dailyTotals.sessions.at(-1).phase, 'shortBreak')
+assert.equal(dailyTotals.sessions.at(-1).durationMs, 3 * minute)
+assert.equal(model.todaySummary(dailyTotals, now).durationMs, 25 * minute)
+
+let skippedBreak = model.start(model.readyPhase(model.freshState(now), 'longBreak'), now)
+skippedBreak = model.skip(skippedBreak, now + 4 * minute)
+assert.equal(skippedBreak.sessions.length, 1)
+assert.equal(skippedBreak.sessions[0].phase, 'longBreak')
+assert.equal(skippedBreak.sessions[0].durationMs, 4 * minute)
+assert.equal(model.todayPhaseSummary(skippedBreak, now + 4 * minute).breakMs, 4 * minute)
+
+// Legacy saved sessions have no phase and continue to count as focus.
+const legacy = model.normalizeState({ sessions: [{ date: today, endedAtMs: now, durationMs: 10 * minute }] }, now)
+assert.equal(legacy.sessions[0].phase, 'focus')
+assert.equal(model.todayPhaseSummary(legacy, now).focusMs, 10 * minute)
 
 console.log('ok - Firehawk Focus model')

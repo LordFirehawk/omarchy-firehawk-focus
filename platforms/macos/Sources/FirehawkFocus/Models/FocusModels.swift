@@ -160,9 +160,19 @@ public struct DaySummary: Codable, Identifiable, Equatable {
     public var day: String
     public var durationMs: Double
     public var sessions: Int
+    public var breakDurationMs: Double = 0
+    public var breakSessions: Int = 0
 
     public var durationMinutes: Double {
         durationMs / 60000.0
+    }
+
+    public var breakDurationMinutes: Double {
+        breakDurationMs / 60000.0
+    }
+
+    public var totalMinutes: Double {
+        durationMinutes + breakDurationMinutes
     }
 }
 
@@ -170,9 +180,18 @@ public struct TodaySummary: Codable, Equatable {
     public var date: String
     public var durationMs: Double
     public var sessions: Int
+    public var breakDurationMs: Double = 0
 
     public var formattedDuration: String {
-        let minutes = Int(round(max(0, durationMs) / 60000.0))
+        TodaySummary.format(durationMs)
+    }
+
+    public var formattedBreakDuration: String {
+        TodaySummary.format(breakDurationMs)
+    }
+
+    static func format(_ ms: Double) -> String {
+        let minutes = Int(round(max(0, ms) / 60000.0))
         let hours = minutes / 60
         let rest = minutes % 60
         if hours > 0 {
